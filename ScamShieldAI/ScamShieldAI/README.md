@@ -1,7 +1,7 @@
 # ScamShield AI
 
 **Track:** AI + Finance · Veritas AI International High School Hackathon 2026  
-**Team:** [Add participant name(s) before submission]
+**Team:** Milivojevic Aleksa
 
 This project is a prototype and is not financial advice.
 
@@ -12,6 +12,22 @@ A teen with a first debit card receives an unexpected SMS about a payment, prize
 ## What we built
 
 A local web app that scores an English SMS and explains the words or fragments that influenced the prediction. It can restore words split by a stray period and show scores before and after restoration. The score measures resemblance to the historical spam class. Sender identity and link safety require independent verification.
+
+## Financial phishing signals (additional prototype feature)
+
+The analyzer now includes a **separate, rule-based phishing warning** for English
+financial messages combining account/payment context, restriction or urgency,
+and a request for verification, credentials, or action. The warning **does not
+change the trained model's probability**. The UI explicitly distinguishes
+`Model spam score` from `Financial phishing warning` and lists matched signals.
+
+This feature was added after noticing a bank-suspension phishing example scored
+38.8% by the general SMS spam classifier. It is a heuristic demonstration,
+**not a trained or validated financial-fraud classifier**. False positives and
+false negatives are possible; legitimate security notices can contain similar
+language. The historical SMS dataset performance tables measure the original
+ML model only and must not be presented as validation of these new rules.
+
 
 ## What we added
 
@@ -66,8 +82,8 @@ Evaluate on newer English SMS, especially short messages with verified labels, a
 ## Run in PyCharm
 
 Open the extracted `ScamShieldAI` folder containing `main.py`. On Windows, run this from the PyCharm terminal:
-
 ```powershell
+py -m pip install -r requirements.txt
 py main.py
 ```
 
@@ -79,17 +95,3 @@ For a short demo, open **Message analyzer** and analyze the built-in promotional
 
 `model.py` defines the classifiers and explanations. `text_defense.py` restores split words. `train_model.py` prepares the data and runs the comparisons. `main.py`, `templates/` and `static/` serve the app. `results.json` records the included experiment.
 
-## Financial phishing signals (additional prototype feature)
-
-The analyzer now includes a **separate, rule-based phishing warning** for English
-financial messages combining account/payment context, restriction or urgency,
-and a request for verification, credentials, or action. The warning **does not
-change the trained model's probability**. The UI explicitly distinguishes
-`Model spam score` from `Financial phishing warning` and lists matched signals.
-
-This feature was added after noticing a bank-suspension phishing example scored
-38.8% by the general SMS spam classifier. It is a heuristic demonstration,
-**not a trained or validated financial-fraud classifier**. False positives and
-false negatives are possible; legitimate security notices can contain similar
-language. The historical SMS dataset performance tables measure the original
-ML model only and must not be presented as validation of these new rules.
