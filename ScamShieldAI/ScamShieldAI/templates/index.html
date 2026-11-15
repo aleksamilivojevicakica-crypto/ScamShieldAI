@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#14251f">
+  <title>ScamShield AI</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="shell top-inner">
+      <a class="brand" href="{{ url_for('index') }}"><span class="brand-icon" aria-hidden="true"></span>ScamShield AI</a>
+      <span class="top-note">English SMS only</span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="hero">
+      <h1>Check a suspicious SMS</h1>
+      <p>See the machine learning spam score, explainable text features, and separate financial-phishing risk signals.</p>
+    </div>
+    <nav class="tabs" aria-label="Project views">
+      <button type="button" data-target="analyzer" aria-current="page">Message analyzer</button>
+      <button type="button" data-target="defense">Text protection</button>
+      <button type="button" data-target="robustness">Robustness</button>
+      <button type="button" data-target="performance">Model performance</button>
+    </nav>
+
+    <section id="analyzer" class="panel">
+      <div class="analyzer-grid">
+        <form id="analyze-form" class="card">
+          <label class="section-title" for="message">Message text</label>
+          <textarea id="message" maxlength="{{ limit }}" rows="7" required placeholder="Paste a message here…" aria-describedby="input-hint"></textarea>
+          <div class="form-meta">
+            <span id="input-hint">Processed on this computer</span>
+            <span><span id="length">0</span> / {{ limit }}</span>
+          </div>
+          <button class="primary" id="analyze-button" type="submit">Analyze message <span aria-hidden="true">↗</span></button>
+          <p class="error" id="error" role="alert" hidden></p>
+          <div class="examples" aria-label="Sample messages">
+            {% for label, message in examples %}
+              <button type="button" class="example" data-example="{{ message }}">{{ label }}</button>
+            {% endfor %}
+          </div>
+        </form>
+        <div class="card result-card">
+          <h2>Model assessment</h2>
+          <p id="placeholder">Analyze a message to see its score and the words or fragments that most influenced it.</p>
+          <div id="result" hidden>
+            <div class="verdict" id="verdict" role="status">
+              <strong id="verdict-text"></strong>
+              <span id="score"></span>
+            </div>
+            <p id="threshold" class="muted"></p>
+            <p id="guidance"></p>
+            <div id="phishing-signals" class="restoration" hidden>
+              <h3>Financial phishing warning</h3>
+              <p id="phishing-level" class="muted"></p>
+              <p>Multiple social-engineering signals were detected. This is a rule-based warning, not a phishing probability or proof of fraud.</p>
+              <ul id="phishing-list"></ul>
+            </div>
+            <div id="restoration" class="restoration" hidden>
+              <h3>Text restored before scoring</h3>
+              <p id="restoration-score" class="muted"></p>
+              <p id="restoration-text"></p>
+            </div>
+            <h3>Features that influenced the score</h3>
+            <p class="muted">Contributions are measured in log-odds. A plus sign raises the spam score. The symbol ␣ represents a word boundary.</p>
+            <ul id="explanation" class="factors"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="defense" class="panel" hidden>
+      <div class="card">
+        <h2>Recovering words split by stray periods</h2>
+        <p>The analyzer can join a split word when its full spelling appears in the training vocabulary.
+          If it changes the text, the analyzer shows the restored message and both spam scores.</p>
+        <button type="button" class="example" id="defense-example"
+                data-example="Can we meet outside the li.brary after class?">Try a sample in the analyzer</button>
+      </div>
+      <div class="card">
+        <h2>Performance on held-out SMS</h2>
+        {% if report.defense_audit %}
+          <p>We used the same classifier and alert threshold for both versions. Each version
+            scored the original test messages and their copies with a fixed synthetic typing error.</p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th scope="col">Input</th><th scope="col">Version</th><th scope="col">Spam detected</th><th scope="col">Recall</th><th scope="col">False alerts</th><th scope="col">F1</th></tr></thead>
+              <tbody>
+                {% for key, condition in [('clean', 'Original SMS'), ('typing_errors', 'Synthetic typing error')] %}
+                  {% for version, label in [('original', 'Original scorer'), ('protected', 'With word restoration')] %}
+                    {% set row = report.defense_audit[key][version] %}
+                    <tr{% if version == 'protected' %} class="featured"{% endif %}>
+                      <th scope="row">{{ condition }}</th><td>{{ label }}</td>
+                      <td>{{ row.tp }} / {{ row.spam }}</td><td>{{ row.recall | pct }}</td>
+                      <td>{{ row.fp }}</td><td>{{ row.f1 | pct }}</td>
+                    </tr>
+                  {% endfor %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="muted">This measures one type of text corruption on a historical English SMS dataset.</p>
+        {% else %}
+          <p>Run <code>py train_model.py --report results.json</code> to generate the comparison, then restart the app.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section id="robustness" class="panel" hidden>
+      <div class="card">
+        <h2>Does message length affect spam detection?</h2>
+        <p>This five-fold audit gives each message one prediction from a model trained on other message groups. Short messages have up to {{ short_limit }} words. Recall is the share of labeled spam caught.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th scope="col">Messages</th><th scope="col">Version</th><th scope="col">Test SMS</th><th scope="col">Spam detected</th><th scope="col">Recall</th><th scope="col">False alerts</th><th scope="col">F1</th></tr></thead>
+            <tbody>
+            {% for group, label in [('short', 'Short'), ('long', 'Longer')] %}
+              {% for key, version in [('words_lr', 'Words'), ('hybrid', 'Words + fragments')] %}
+                {% set row = report.length_audit[key][group] %}
+                <tr><th scope="row">{{ label }}</th><td>{{ version }}</td><td>{{ row.n }}</td><td>{{ row.tp }} / {{ row.spam }}</td><td>{{ row.recall | pct }}</td><td>{{ row.fp }}</td><td>{{ row.f1 | pct }}</td></tr>
+              {% endfor %}
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">The short group contains {{ report.length_audit.hybrid.short.spam }} labeled spam examples. Treat its recall as an exploratory result.</p>
+      </div>
+      <div class="card">
+        <h2>Examples the original scorer got wrong</h2>
+        <p>These are labeled test messages. Contact details and numbers are masked for display.</p>
+        <ul class="case-list">
+        {% for error in report.errors %}
+          <li><q>{{ error.text }}</q><span>Label: {{ error.label }} · Prediction: {{ error.prediction }} · Score: {{ error.score | pct }}</span></li>
+        {% endfor %}
+        </ul>
+      </div>
+    </section>
+
+    <section id="performance" class="panel" hidden>
+      <div class="card">
+        <h2>Model comparison on original SMS</h2>
+        <p>Precision is the share of alerts labeled spam. Recall is the share of spam caught. F1 balances the two. Average precision (AP) measures ranking quality across thresholds.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th scope="col">Model</th><th scope="col">Precision</th><th scope="col">Recall</th><th scope="col">F1</th><th scope="col">AP</th></tr></thead>
+            <tbody>
+            {% for key, entry in report.models.items() %}
+              {% set row = entry.overall %}
+              <tr{% if key == "hybrid" %} class="featured"{% endif %}><th scope="row">{{ entry.name }}</th>
+                <td>{{ '—' if row.tp + row.fp == 0 else row.precision | pct }}</td><td>{{ row.recall | pct }}</td>
+                <td><div class="bar-cell"><span>{{ row.f1 | pct }}</span><progress max="1" value="{{ row.f1 }}" aria-label="F1 score"></progress></div></td>
+                <td>{{ row.ap | pct }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">The simple baseline raises zero alerts, so its precision is undefined.</p>
+      </div>
+      <div class="card">
+        {% set best = report.models.hybrid.overall %}
+        <h2>Confusion matrix · words + fragments</h2>
+        <div class="table-scroll">
+          <table class="matrix">
+            <thead><tr><th scope="col">Actual label</th><th scope="col">Predicted ordinary</th><th scope="col">Predicted spam</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Ordinary</th><td>{{ best.tn }}</td><td>{{ best.fp }}</td></tr>
+              <tr><th scope="row">Spam</th><td>{{ best.fn }}</td><td>{{ best.tp }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">{{ report.splits.train.total }} train · {{ report.splits.validation.total }} validation · {{ report.splits.test.total }} test. Messages with the same normalized template stay in the same partition. Decision thresholds use validation data.</p>
+      </div>
+    </section>
+    <footer>This project is a prototype and is not financial advice.</footer>
+  </main>
+</body>
+</html>
